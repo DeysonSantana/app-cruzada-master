@@ -116,9 +116,9 @@ export class AIService {
     const systemInstruction = `Você é um Criador Mestre de Palavras Cruzadas (Crossword Master).
 Seu objetivo é sugerir palavras em português do Brasil e suas respectivas dicas sobre o tema solicitado.
 REGRAS MANDATÓRIAS:
-1. Retorne palavras de 3 a 10 letras apenas alfabéticas A-Z (sem espaços, sem hífens).
-2. As palavras devem compartilhar letras comuns (vogais como A, E, O e consoantes comuns como R, S, T, M, N, L) para permitir cruzamento.
-3. Para cada palavra, forneça uma dica inteligente, intrigante e concisa (máximo 120 caracteres).
+1. Retorne palavras de 3 a 10 letras apenas alfabéticas A-Z (sem espaços, sem hífens, sem acentos).
+2. As palavras devem compartilhar letras comuns (especialmente vogais A, E, O, I e consoantes frequentes R, S, T, M, N, L) para garantir que consigam se cruzar ortogonalmente em grade.
+3. Para cada palavra, forneça uma dica inteligente, intrigante e concisa (máximo 100 caracteres).
 4. Responda ESTRITAMENTE em formato JSON puro no seguinte padrão:
 {
   "title": "Título Temático Criativo",
@@ -128,22 +128,35 @@ REGRAS MANDATÓRIAS:
   ]
 }`;
 
-    const userPrompt = `Crie exatamente ${wordCount} palavras e dicas sobre o tema: "${topic}".
+    const numWords = Math.max(wordCount, 10);
+    const userPrompt = `Gere ${numWords} palavras e dicas sobre o tema: "${topic}".
 Nível de Dificuldade: ${difficulty}.
-Assegure vocabulário diversificado e letras que se cruzem perfeitamente.`;
+Responda EXCLUSIVAMENTE com o objeto JSON especificado, sem nenhum texto introdutório ou explicativo.`;
 
     const rawResponse = await this.callGeminiWithDiscovery(systemInstruction, userPrompt);
     const parsedData = this.cleanAndParseJSON(rawResponse);
 
-    if (!parsedData || !Array.isArray(parsedData.words) || parsedData.words.length < 2) {
-      throw new Error('A IA não retornou palavras válidas suficientes para montar a cruzada.');
+    // Suporta 'words', 'palavras', 'items' ou 'itens'
+    const rawList = parsedData?.words || parsedData?.palavras || parsedData?.items || parsedData?.itens || [];
+    if (!Array.isArray(rawList) || rawList.length < 2) {
+      throw new Error('A IA não retornou palavras suficientes para montar a cruzada. Tente gerar novamente.');
+    }
+
+    // Normaliza os itens garantindo pares { word, clue }
+    const normalizedWords = rawList.map(item => ({
+      word: (item.word || item.palavra || item.termo || '').trim(),
+      clue: (item.clue || item.dica || item.definicao || '').trim()
+    })).filter(w => w.word.length >= 2 && w.clue.length > 0);
+
+    if (normalizedWords.length < 2) {
+      throw new Error('A IA não gerou palavras válidas com dicas. Tente gerar novamente com outro tema.');
     }
 
     // Calcula as posições ortogonais da grade com o motor procedural
-    const generatedPuzzle = CrosswordEngine.generateProcedural(parsedData.words, {
-      title: parsedData.title || `Cruzada: ${topic}`,
+    const generatedPuzzle = CrosswordEngine.generateProcedural(normalizedWords, {
+      title: parsedData.title || parsedData.titulo || `Cruzada: ${topic}`,
       author: 'CruzadaMaster IA',
-      difficulty: parsedData.difficulty || difficulty
+      difficulty: parsedData.difficulty || parsedData.dificuldade || difficulty
     });
 
     if (generatedPuzzle.words.length < 2) {
@@ -168,23 +181,40 @@ Assegure vocabulário diversificado e letras que se cruzem perfeitamente.`;
     for (const model of modelsToTry) {
       try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
-        const response = await fetch(url, {
+        const requestPayload = {
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: `${systemInstruction}\n\n${userPrompt}` }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            responseMimeType: 'application/json'
+          }
+        };
+
+        let response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  { text: `${systemInstruction}\n\n${userPrompt}` }
-                ]
-              }
-            ],
-            generationConfig: {
-              temperature: 0.7
-            }
-          })
+          body: JSON.stringify(requestPayload)
         });
+
+        // Caso algum modelo não suporte responseMimeType (400), tenta sem o cabeçalho
+        if (!response.ok && response.status === 400) {
+          const errDataCopy = await response.clone().json().catch(() => ({}));
+          const errMsg = errDataCopy.error?.message || '';
+          if (errMsg.toLowerCase().includes('mimetype') || errMsg.toLowerCase().includes('generationconfig')) {
+            delete requestPayload.generationConfig.responseMimeType;
+            response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(requestPayload)
+            });
+          }
+        }
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
@@ -199,6 +229,10 @@ Assegure vocabulário diversificado e letras que se cruzem perfeitamente.`;
         const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!text) {
+          const finishReason = data.candidates?.[0]?.finishReason;
+          if (finishReason === 'SAFETY') {
+            throw new Error('A resposta foi bloqueada pelos filtros de moderação do Gemini.');
+          }
           throw new Error(`Resposta vazia recebida do modelo ${model}`);
         }
 
@@ -216,14 +250,52 @@ Assegure vocabulário diversificado e letras que se cruzem perfeitamente.`;
     throw new Error(`Falha ao conectar com o Gemini: ${lastError?.message || 'Verifique sua chave de API.'}`);
   }
 
+  /**
+   * Limpa e decodifica respostas JSON de forma ultra-resiliente
+   */
   cleanAndParseJSON(rawText) {
-    if (!rawText) return null;
-    let text = rawText.trim();
-    if (text.startsWith('```json')) text = text.replace(/^```json\s*/, '');
-    if (text.startsWith('```')) text = text.replace(/^```\s*/, '');
-    if (text.endsWith('```')) text = text.replace(/\s*```$/, '');
+    if (!rawText || typeof rawText !== 'string') {
+      throw new Error('A resposta recebida da IA está vazia.');
+    }
 
-    return JSON.parse(text);
+    let text = rawText.trim().replace(/^\uFEFF/, '');
+
+    // 1. Tentativa direta de parsing JSON nativo
+    try {
+      return JSON.parse(text);
+    } catch (e) {}
+
+    // 2. Extrai de bloco de código Markdown (```json ... ``` ou ``` ... ```)
+    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      const candidate = codeBlockMatch[1].trim();
+      try {
+        return JSON.parse(candidate);
+      } catch (e) {
+        try {
+          const cleaned = candidate.replace(/,\s*([\]}])/g, '$1');
+          return JSON.parse(cleaned);
+        } catch (e2) {}
+      }
+    }
+
+    // 3. Extrai substring delimitada pelo primeiro '{' e último '}'
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      const candidate = text.substring(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(candidate);
+      } catch (e) {
+        try {
+          // Remove vírgulas trailing que LLMs comumente produzem
+          const cleaned = candidate.replace(/,\s*([\]}])/g, '$1');
+          return JSON.parse(cleaned);
+        } catch (e2) {}
+      }
+    }
+
+    throw new Error('Não foi possível interpretar a resposta da IA como JSON. Por favor, tente gerar novamente.');
   }
 }
 
