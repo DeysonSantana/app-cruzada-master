@@ -60,7 +60,33 @@ export class CrosswordBuilder {
   saveMyPuzzles() {
     try {
       localStorage.setItem(STORAGE_MY_PUZZLES, JSON.stringify(this.myPuzzles));
+      if (window.cruzadaApp?.authManager) {
+        window.cruzadaApp.authManager.syncPuzzlesToCloud(this.myPuzzles);
+      }
     } catch (e) {}
+  }
+
+  mergeCloudPuzzles(cloudPuzzles) {
+    if (!Array.isArray(cloudPuzzles) || cloudPuzzles.length === 0) return;
+
+    const existingIds = new Set(this.myPuzzles.map(p => p.id || p.title));
+    let hasNew = false;
+
+    cloudPuzzles.forEach(cp => {
+      const idKey = cp.id || cp.title;
+      if (!existingIds.has(idKey)) {
+        this.myPuzzles.push(cp);
+        existingIds.add(idKey);
+        hasNew = true;
+      }
+    });
+
+    if (hasNew) {
+      try {
+        localStorage.setItem(STORAGE_MY_PUZZLES, JSON.stringify(this.myPuzzles));
+      } catch (e) {}
+      console.log('[CrosswordBuilder] Tabuleiros da nuvem mesclados com sucesso.');
+    }
   }
 
   bindEvents() {

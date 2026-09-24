@@ -1,6 +1,7 @@
 /**
  * Serviço de Integração com Inteligência Artificial (Google Gemini) para CruzadaMaster
  * Auto-descoberta dinâmica de modelos via ListModels, detecção inteligente de chaves e fallback resiliente.
+ * Suporta sincronização de chaves na nuvem com a conta Google do jogador.
  */
 import { CrosswordEngine, normalizeText } from './crosswordEngine.js';
 
@@ -17,11 +18,16 @@ export class AIService {
     return this.apiKey;
   }
 
-  setApiKey(key) {
+  setApiKey(key, syncCloud = true) {
     this.apiKey = (key || '').trim();
     this.cachedAvailableModels = null;
     this.cachedWorkingModel = null;
     localStorage.setItem(STORAGE_API_KEY, this.apiKey);
+
+    // Se estiver conectado com a conta Google, sincroniza no Firestore
+    if (syncCloud && window.cruzadaApp?.authManager) {
+      window.cruzadaApp.authManager.syncApiKeyToCloud(this.apiKey);
+    }
   }
 
   hasApiKey() {
@@ -184,7 +190,6 @@ Assegure vocabulário diversificado e letras que se cruzem perfeitamente.`;
           const errData = await response.json().catch(() => ({}));
           const errMsg = errData.error?.message || `HTTP ${response.status} no modelo ${model}`;
 
-          // Se for erro de autenticação ou cota, aborta imediatamente em vez de insistir em outros modelos
           if (response.status === 400 || response.status === 403) {
             throw new Error(`Erro na API do Gemini: ${errMsg}`);
           }
@@ -202,7 +207,6 @@ Assegure vocabulário diversificado e letras que se cruzem perfeitamente.`;
       } catch (err) {
         console.warn(`[AIService] Falha no modelo ${model}:`, err.message);
         lastError = err;
-        // Se foi erro de autenticação, propaga de imediato
         if (err.message.includes('API key not valid') || err.message.includes('Chave de API')) {
           throw err;
         }

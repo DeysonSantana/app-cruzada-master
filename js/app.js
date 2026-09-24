@@ -506,6 +506,18 @@ class CruzadaApp {
     if (this.dom.aiGeneratorBtn) this.dom.aiGeneratorBtn.addEventListener('click', () => this.openAiModal());
     if (this.dom.aiGenerateSubmitBtn) this.dom.aiGenerateSubmitBtn.addEventListener('click', () => this.handleAiGenerate());
 
+    if (this.dom.aiApiKeyInput) {
+      this.dom.aiApiKeyInput.addEventListener('change', (e) => {
+        const val = e.target.value.trim();
+        if (val) {
+          aiService.setApiKey(val);
+          if (this.authManager) {
+            this.authManager.updateAiModalSyncStatus();
+          }
+        }
+      });
+    }
+
     if (this.dom.victoryPlayNextBtn) {
       this.dom.victoryPlayNextBtn.addEventListener('click', () => {
         soundFx.playClick();
@@ -619,6 +631,9 @@ class CruzadaApp {
     }
     if (this.dom.aiFeedbackText) {
       this.dom.aiFeedbackText.classList.add('hidden');
+    }
+    if (this.authManager) {
+      this.authManager.updateAiModalSyncStatus();
     }
     this.openModal(this.dom.aiModal);
   }

@@ -3,7 +3,7 @@
  * Permite que o jogo funcione 100% offline sem conexão com a internet.
  */
 
-const CACHE_NAME = 'cruzadamaster-v1.1.0';
+const CACHE_NAME = 'cruzadamaster-v1.2.0';
 
 const STATIC_ASSETS = [
   './',

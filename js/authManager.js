@@ -1,9 +1,11 @@
 /**
  * Gerenciador de Autenticação e Perfis do CruzadaMaster
- * Suporta Login com Google (Firebase Auth) e Modo Visitante Local
+ * Suporta Login com Google (Firebase Auth) e Sincronização em Nuvem (Firestore)
+ * de Chaves de API, Perfil e Tabuleiros Salvos entre múltiplos dispositivos.
  */
 import { serverlessDB } from './firebaseConfig.js';
 import { soundFx } from './audio.js';
+import { aiService } from './aiService.js';
 
 const STORAGE_LOCAL_USER = 'CRUZADAMASTER_USER_PROFILE';
 
@@ -32,7 +34,10 @@ export class AuthManager {
       guestNameInput: document.getElementById('guest-name-input'),
       guestAvatarSelect: document.getElementById('guest-avatar-select'),
       saveGuestProfileBtn: document.getElementById('save-guest-profile-btn'),
-      authFeedbackText: document.getElementById('auth-feedback-text')
+      authFeedbackText: document.getElementById('auth-feedback-text'),
+
+      // AI Modal Sync Badge
+      aiKeySyncStatus: document.getElementById('ai-key-sync-status')
     };
 
     this.init();
@@ -46,7 +51,7 @@ export class AuthManager {
     await serverlessDB.initPromise;
     if (serverlessDB.auth) {
       const { onAuthStateChanged } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-      onAuthStateChanged(serverlessDB.auth, (user) => {
+      onAuthStateChanged(serverlessDB.auth, async (user) => {
         if (user) {
           this.currentUser = {
             uid: user.uid,
@@ -55,6 +60,9 @@ export class AuthManager {
             photoURL: user.photoURL,
             isGoogle: true
           };
+
+          // Sincroniza dados em nuvem com a conta Google do jogador
+          await this.syncFromCloud(user.uid);
         } else if (!this.currentUser || this.currentUser.isGoogle) {
           this.currentUser = this.loadLocalUser();
         }
@@ -90,6 +98,91 @@ export class AuthManager {
 
   getUserName() {
     return this.currentUser?.displayName || 'Jogador';
+  }
+
+  isLoggedIn() {
+    return !!this.currentUser?.isGoogle;
+  }
+
+  /**
+   * Sincroniza a chave da API do Gemini para a conta do usuário no Firestore
+   */
+  async syncApiKeyToCloud(key) {
+    if (!this.currentUser?.isGoogle || !serverlessDB.firestore) return;
+    try {
+      const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const userRef = doc(serverlessDB.firestore, 'users', this.currentUser.uid);
+      await setDoc(userRef, {
+        geminiApiKey: key,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      console.log('[AuthManager] Chave Gemini sincronizada na nuvem com a conta Google.');
+      this.updateAiModalSyncStatus();
+    } catch (e) {
+      console.warn('[AuthManager] Falha ao sincronizar chave com a nuvem:', e);
+    }
+  }
+
+  /**
+   * Sincroniza os tabuleiros personalizados do usuário para a nuvem
+   */
+  async syncPuzzlesToCloud(puzzles) {
+    if (!this.currentUser?.isGoogle || !serverlessDB.firestore) return;
+    try {
+      const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const userRef = doc(serverlessDB.firestore, 'users', this.currentUser.uid);
+      await setDoc(userRef, {
+        myPuzzles: puzzles,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (e) {
+      console.warn('[AuthManager] Falha ao sincronizar tabuleiros na nuvem:', e);
+    }
+  }
+
+  /**
+   * Baixa os dados em nuvem e aplica nas preferências locais
+   */
+  async syncFromCloud(uid) {
+    if (!serverlessDB.firestore) return;
+    try {
+      const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const userRef = doc(serverlessDB.firestore, 'users', uid);
+      const snapshot = await getDoc(userRef);
+
+      if (snapshot.exists()) {
+        const cloudData = snapshot.data();
+        
+        // 1. Chave de API do Gemini
+        if (cloudData.geminiApiKey) {
+          aiService.setApiKey(cloudData.geminiApiKey, false);
+          const aiKeyInput = document.getElementById('ai-api-key-input');
+          if (aiKeyInput) aiKeyInput.value = cloudData.geminiApiKey;
+          console.log('[AuthManager] Chave Gemini restaurada da conta Google.');
+        } else {
+          // Se ainda não existia na nuvem, mas o usuário já tinha uma chave local, envia para a nuvem
+          const localKey = aiService.getApiKey();
+          if (localKey) {
+            await this.syncApiKeyToCloud(localKey);
+          }
+        }
+
+        // 2. Tabuleiros criados
+        if (Array.isArray(cloudData.myPuzzles) && this.app.crosswordBuilder) {
+          this.app.crosswordBuilder.mergeCloudPuzzles(cloudData.myPuzzles);
+        }
+      } else {
+        // Primeiro login: salva a chave local na nuvem se existir
+        const localKey = aiService.getApiKey();
+        if (localKey) {
+          await this.syncApiKeyToCloud(localKey);
+        }
+      }
+
+      this.updateAiModalSyncStatus();
+    } catch (e) {
+      console.warn('[AuthManager] Falha ao carregar perfil da nuvem:', e);
+    }
   }
 
   bindEvents() {
@@ -176,6 +269,9 @@ export class AuthManager {
       this.updateUI();
       soundFx.playWordComplete();
       this.closeAuthModal();
+
+      await this.syncFromCloud(user.uid);
+      this.app.showToast(`Bem-vindo, ${this.currentUser.displayName}! Conta sincronizada.`);
     } catch (err) {
       console.error('[AuthManager] Erro no login Google:', err);
       soundFx.playError();
@@ -200,6 +296,8 @@ export class AuthManager {
     };
     this.saveLocalUser(this.currentUser);
     this.updateUI();
+    this.updateAiModalSyncStatus();
+    this.app.showToast('Sessão encerrada.');
   }
 
   updateUI() {
@@ -216,7 +314,7 @@ export class AuthManager {
       if (photo) {
         this.dom.headerUserAvatar.innerHTML = `<img src="${photo}" alt="${name}" class="w-full h-full rounded-full object-cover" />`;
       } else {
-        this.dom.headerUserAvatar.innerHTML = `<span class="text-sm">${emoji}</span>`;
+        this.dom.headerUserAvatar.innerHTML = `<span class="text-xs">${emoji}</span>`;
       }
     }
 
@@ -239,6 +337,34 @@ export class AuthManager {
       this.dom.drawerAuthActionBtn.className = isGoogle
         ? 'w-full py-2 px-3 text-xs font-bold rounded-xl bg-gray-800 hover:bg-rose-950/40 text-gray-300 hover:text-rose-400 border border-gray-700 hover:border-rose-500/40 transition-colors'
         : 'w-full py-2 px-3 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-600/20 transition-colors';
+    }
+
+    this.updateAiModalSyncStatus();
+  }
+
+  updateAiModalSyncStatus() {
+    const statusEl = document.getElementById('ai-key-sync-status');
+    if (!statusEl) return;
+
+    if (this.isLoggedIn()) {
+      statusEl.className = 'text-[11px] text-emerald-400 font-semibold flex items-center gap-1.5 mt-1.5';
+      statusEl.innerHTML = `
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span>Sincronizada na sua conta Google (${this.currentUser.email})</span>
+      `;
+    } else {
+      statusEl.className = 'text-[11px] text-gray-400 font-medium flex items-center gap-1.5 mt-1.5';
+      statusEl.innerHTML = `
+        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+        <span>Salva neste navegador. <button type="button" id="ai-quick-login-btn" class="text-indigo-400 hover:text-indigo-300 underline font-semibold">Entre com o Google</button> para usar em qualquer celular ou PC.</span>
+      `;
+      const quickLogin = document.getElementById('ai-quick-login-btn');
+      if (quickLogin) {
+        quickLogin.addEventListener('click', () => {
+          this.app.closeModal(document.getElementById('ai-modal'));
+          this.openAuthModal();
+        });
+      }
     }
   }
 
