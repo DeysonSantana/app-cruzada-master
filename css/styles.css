@@ -1,14 +1,14 @@
 /* =========================================================================
-   CRUZADAMASTER - DESIGN SYSTEM & ESTILOS GLOBAIS
+   CRUZADAMASTER - DESIGN SYSTEM & ESTILOS GLOBAIS (8 TEMAS)
    ========================================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@700&family=Cinzel:wght@700;900&display=swap');
 
 :root {
   --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-display: 'Outfit', system-ui, sans-serif;
 
-  /* Tema Padrão: Dark Neon */
+  /* Tema 1: Dark Neon (Padrão) */
   --bg-primary: #090d16;
   --bg-secondary: #0f172a;
   --bg-card: rgba(15, 23, 42, 0.85);
@@ -24,10 +24,10 @@
 }
 
 /* =========================================================================
-   SISTEMA DE 5 TEMAS
+   SISTEMA DE 8 TEMAS
    ========================================================================= */
 
-/* 1. Clean Light */
+/* 2. Clean Light */
 body.theme-light-modern {
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
@@ -43,7 +43,7 @@ body.theme-light-modern {
   --cell-word-hl: rgba(99, 102, 241, 0.14);
 }
 
-/* 2. Emerald Forest */
+/* 3. Emerald Forest */
 body.theme-emerald {
   --bg-primary: #04120e;
   --bg-secondary: #08211a;
@@ -59,7 +59,7 @@ body.theme-emerald {
   --cell-word-hl: rgba(16, 185, 129, 0.22);
 }
 
-/* 3. Sunset Amber */
+/* 4. Sunset Amber */
 body.theme-sunset {
   --bg-primary: #150b0f;
   --bg-secondary: #221218;
@@ -75,7 +75,7 @@ body.theme-sunset {
   --cell-word-hl: rgba(245, 158, 11, 0.22);
 }
 
-/* 4. Midnight AMOLED */
+/* 5. Midnight AMOLED */
 body.theme-midnight-amoled {
   --bg-primary: #000000;
   --bg-secondary: #050505;
@@ -89,6 +89,64 @@ body.theme-midnight-amoled {
   --cell-border: rgba(255, 255, 255, 0.3);
   --cell-active: #0284c7;
   --cell-word-hl: rgba(56, 189, 248, 0.2);
+}
+
+/* 6. Dracula Synthwave */
+body.theme-dracula {
+  --bg-primary: #1e1f29;
+  --bg-secondary: #282a36;
+  --bg-card: rgba(40, 42, 54, 0.9);
+  --border-color: rgba(189, 147, 249, 0.2);
+  --accent-color: #ff79c6;
+  --accent-glow: rgba(255, 121, 198, 0.35);
+  --text-primary: #f8f8f2;
+  --text-secondary: #bd93f9;
+  --cell-bg: #383a59;
+  --cell-border: rgba(189, 147, 249, 0.3);
+  --cell-active: #bd93f9;
+  --cell-word-hl: rgba(255, 121, 198, 0.25);
+}
+
+/* 7. Pergaminho & Café (Clássico Jornal) */
+body.theme-parchment {
+  --font-display: 'Cinzel', serif;
+  --bg-primary: #f4ebd9;
+  --bg-secondary: #fbf7ee;
+  --bg-card: rgba(251, 247, 238, 0.95);
+  --border-color: rgba(120, 53, 15, 0.15);
+  --accent-color: #78350f;
+  --accent-glow: rgba(120, 53, 15, 0.25);
+  --text-primary: #291807;
+  --text-secondary: #78350f;
+  --cell-bg: #ffffff;
+  --cell-border: #b48e64;
+  --cell-active: #78350f;
+  --cell-word-hl: rgba(120, 53, 15, 0.15);
+}
+
+body.theme-parchment .cw-cell-active .cw-cell-letter {
+  color: #ffffff !important;
+}
+
+/* 8. Matrix Hacker Terminal */
+body.theme-matrix {
+  --font-display: 'Space Mono', monospace;
+  --bg-primary: #020d06;
+  --bg-secondary: #05180c;
+  --bg-card: rgba(5, 24, 12, 0.9);
+  --border-color: rgba(0, 255, 102, 0.2);
+  --accent-color: #00ff66;
+  --accent-glow: rgba(0, 255, 102, 0.4);
+  --text-primary: #00ff66;
+  --text-secondary: #00993d;
+  --cell-bg: #041b0b;
+  --cell-border: rgba(0, 255, 102, 0.3);
+  --cell-active: #00bb4b;
+  --cell-word-hl: rgba(0, 255, 102, 0.2);
+}
+
+body.theme-matrix .cw-cell-active .cw-cell-letter {
+  color: #020d06 !important;
 }
 
 /* =========================================================================
@@ -114,12 +172,30 @@ body {
   font-family: var(--font-display);
 }
 
-/* Fundo com efeito mesh gradient sutil */
 .bg-mesh {
   background-image: 
     radial-gradient(at 10% 20%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
     radial-gradient(at 90% 80%, rgba(236, 72, 153, 0.06) 0px, transparent 50%);
   background-attachment: fixed;
+}
+
+/* =========================================================================
+   MOBILE ASIDE DRAWER (MENU LATERAL DESLIZANTE)
+   ========================================================================= */
+
+#mobile-drawer-panel {
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: var(--bg-secondary);
+}
+
+#mobile-drawer-container.drawer-open #mobile-drawer-panel {
+  transform: translateX(0);
+}
+
+#mobile-drawer-container.drawer-open #mobile-drawer-backdrop {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* =========================================================================

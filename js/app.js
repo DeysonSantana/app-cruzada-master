@@ -1,12 +1,14 @@
 /**
  * Orquestrador Central da Aplicação CruzadaMaster (CruzadaApp)
- * Gerencia o ciclo de vida do jogo, modais, timer, pontuação, hints e celebração de vitória.
+ * Gerencia o ciclo de vida do jogo, modais, timer, pontuação, hints, auth, criador e drawer mobile.
  */
 import { CrosswordEngine } from './crosswordEngine.js';
 import { GridRenderer } from './gridRenderer.js';
 import { InputController } from './inputController.js';
 import { ThemeManager } from './themeManager.js';
 import { OfflineManager } from './offlineManager.js';
+import { AuthManager } from './authManager.js';
+import { CrosswordBuilder } from './crosswordBuilder.js';
 import { DEFAULT_PUZZLES } from './puzzles.js';
 import { soundFx } from './audio.js';
 import { 
@@ -28,6 +30,8 @@ class CruzadaApp {
     this.inputController = null;
     this.themeManager = null;
     this.offlineManager = null;
+    this.authManager = null;
+    this.crosswordBuilder = null;
 
     // Estado da partida
     this.score = 1000;
@@ -51,8 +55,19 @@ class CruzadaApp {
       selectPuzzleBtn: document.getElementById('select-puzzle-btn'),
       aiGeneratorBtn: document.getElementById('ai-generator-btn'),
       shareBtn: document.getElementById('share-btn'),
+      drawerShareBtn: document.getElementById('drawer-share-btn'),
       themeToggleBtn: document.getElementById('theme-toggle-btn'),
+      drawerThemeBtn: document.getElementById('drawer-theme-btn'),
       soundToggleBtn: document.getElementById('sound-toggle-btn'),
+      drawerSoundBtn: document.getElementById('drawer-sound-btn'),
+
+      // Mobile Aside Drawer
+      mobileMenuToggleBtn: document.getElementById('mobile-menu-toggle-btn'),
+      closeMobileDrawerBtn: document.getElementById('close-mobile-drawer-btn'),
+      mobileDrawerContainer: document.getElementById('mobile-drawer-container'),
+      mobileDrawerBackdrop: document.getElementById('mobile-drawer-backdrop'),
+      drawerSelectPuzzleBtn: document.getElementById('drawer-select-puzzle-btn'),
+      drawerAiBtn: document.getElementById('drawer-ai-btn'),
 
       // Botões de Dicas
       hintLetterBtn: document.getElementById('hint-letter-btn'),
@@ -66,6 +81,7 @@ class CruzadaApp {
       aiModal: document.getElementById('ai-modal'),
       shareModal: document.getElementById('share-modal'),
       victoryModal: document.getElementById('victory-modal'),
+      themeModal: document.getElementById('theme-modal'),
 
       // Elementos do Modal de Puzzles
       puzzlesListContainer: document.getElementById('puzzles-list-container'),
@@ -103,17 +119,21 @@ class CruzadaApp {
   init() {
     this.themeManager = new ThemeManager(this);
     this.offlineManager = new OfflineManager(this);
+    this.authManager = new AuthManager(this);
+    this.crosswordBuilder = new CrosswordBuilder(this);
     this.gridRenderer = new GridRenderer(this);
     this.inputController = new InputController(this);
 
     this.bindEvents();
+    this.bindMobileDrawer();
     this.bindModals();
-    this.updateSoundIcon();
+    this.updateSoundIcons();
 
     // Carrega cruzada inicial (URL compartilhada > LocalStorage > Default #1)
     const sharedPuzzle = decodeCrosswordFromUrl();
     if (sharedPuzzle) {
       this.loadNewPuzzle(sharedPuzzle);
+      this.showToast(`🎉 Cruzada compartilhada "${sharedPuzzle.title}" carregada com sucesso!`);
     } else {
       const savedPuzzle = this.loadSavedPuzzle();
       if (savedPuzzle) {
@@ -128,6 +148,7 @@ class CruzadaApp {
       const newShared = decodeCrosswordFromUrl();
       if (newShared) {
         this.loadNewPuzzle(newShared);
+        this.showToast(`🎉 Cruzada "${newShared.title}" carregada!`);
       }
     });
 
@@ -238,7 +259,7 @@ class CruzadaApp {
   }
 
   /**
-   * Sistema de Dicas: Revelar Letra
+   * Sistema de Dicas
    */
   useHintLetter() {
     if (this.isCompleted) return;
@@ -257,9 +278,6 @@ class CruzadaApp {
     }
   }
 
-  /**
-   * Sistema de Dicas: Revelar Palavra Inteira
-   */
   useHintWord() {
     if (this.isCompleted) return;
     soundFx.init();
@@ -275,9 +293,6 @@ class CruzadaApp {
     }
   }
 
-  /**
-   * Sistema de Dicas: Verificar e destacar erros
-   */
   checkAndHighlightErrors() {
     soundFx.init();
     const errorCount = this.engine.checkErrors();
@@ -291,16 +306,12 @@ class CruzadaApp {
 
     this.syncUI();
 
-    // Remove destaque vermelho após 3 segundos
     setTimeout(() => {
       this.engine.clearErrors();
       this.syncUI();
     }, 3000);
   }
 
-  /**
-   * Limpa o tabuleiro atual
-   */
   resetCurrentBoard() {
     if (confirm('Deseja realmente reiniciar este tabuleiro de palavras cruzadas?')) {
       soundFx.playClick();
@@ -308,18 +319,13 @@ class CruzadaApp {
     }
   }
 
-  /**
-   * Persistência de progresso em LocalStorage
-   */
   saveCurrentState() {
     try {
       if (this.currentPuzzleData) {
         localStorage.setItem(STORAGE_LAST_PUZZLE, JSON.stringify(this.currentPuzzleData));
         localStorage.setItem(STORAGE_LAST_STATE, JSON.stringify(this.engine.exportState()));
       }
-    } catch (e) {
-      console.warn('Não foi possível salvar estado no LocalStorage:', e);
-    }
+    } catch (e) {}
   }
 
   loadSavedPuzzle() {
@@ -338,83 +344,145 @@ class CruzadaApp {
     return null;
   }
 
-  /**
-   * Animação de Confetti festivo
-   */
   triggerConfetti() {
     if (window.confetti) {
-      window.confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      window.confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       setTimeout(() => {
-        window.confetti({
-          particleCount: 50,
-          angle: 60,
-          spread: 55,
-          origin: { x: 0 }
-        });
-        window.confetti({
-          particleCount: 50,
-          angle: 120,
-          spread: 55,
-          origin: { x: 1 }
-        });
+        window.confetti({ particleCount: 50, angle: 60, spread: 55, origin: { x: 0 } });
+        window.confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1 } });
       }, 300);
     }
   }
 
-  updateSoundIcon() {
-    if (this.dom.soundToggleBtn) {
-      const isMuted = soundFx.isMuted();
-      this.dom.soundToggleBtn.innerHTML = isMuted 
-        ? '<i data-lucide="volume-x" class="w-5 h-5 text-gray-400"></i>' 
-        : '<i data-lucide="volume-2" class="w-5 h-5 text-indigo-400"></i>';
-      if (window.lucide) window.lucide.createIcons();
+  showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-2xl bg-indigo-600 text-white font-bold text-xs shadow-2xl z-50 animate-bounce flex items-center gap-2 border border-indigo-400';
+    toast.innerHTML = `<span>✨</span><span>${message}</span>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  updateSoundIcons() {
+    const isMuted = soundFx.isMuted();
+    const iconHtml = isMuted 
+      ? '<i data-lucide="volume-x" class="w-4 h-4 text-gray-400"></i>' 
+      : '<i data-lucide="volume-2" class="w-4 h-4 text-indigo-400"></i>';
+
+    if (this.dom.soundToggleBtn) this.dom.soundToggleBtn.innerHTML = iconHtml;
+    if (this.dom.drawerSoundBtn) {
+      this.dom.drawerSoundBtn.innerHTML = `
+        ${iconHtml}
+        <span>${isMuted ? 'Sons Desativados' : 'Sons Ativados'}</span>
+      `;
     }
+    if (window.lucide) window.lucide.createIcons();
   }
 
   // =========================================================================
-  // GESTÃO DE MODAIS E EVENTOS DE INTERFACE
+  // MOBILE ASIDE DRAWER
+  // =========================================================================
+
+  bindMobileDrawer() {
+    if (this.dom.mobileMenuToggleBtn) {
+      this.dom.mobileMenuToggleBtn.addEventListener('click', () => {
+        soundFx.playClick();
+        this.openMobileDrawer();
+      });
+    }
+
+    if (this.dom.closeMobileDrawerBtn) {
+      this.dom.closeMobileDrawerBtn.addEventListener('click', () => {
+        soundFx.playClick();
+        this.closeMobileDrawer();
+      });
+    }
+
+    if (this.dom.mobileDrawerBackdrop) {
+      this.dom.mobileDrawerBackdrop.addEventListener('click', () => {
+        this.closeMobileDrawer();
+      });
+    }
+
+    if (this.dom.drawerSelectPuzzleBtn) {
+      this.dom.drawerSelectPuzzleBtn.addEventListener('click', () => {
+        soundFx.playClick();
+        this.closeMobileDrawer();
+        this.openPuzzlesModal();
+      });
+    }
+
+    if (this.dom.drawerAiBtn) {
+      this.dom.drawerAiBtn.addEventListener('click', () => {
+        soundFx.playClick();
+        this.closeMobileDrawer();
+        this.openAiModal();
+      });
+    }
+
+    if (this.dom.drawerShareBtn) {
+      this.dom.drawerShareBtn.addEventListener('click', () => {
+        soundFx.playClick();
+        this.closeMobileDrawer();
+        this.openShareModal();
+      });
+    }
+
+    if (this.dom.drawerThemeBtn) {
+      this.dom.drawerThemeBtn.addEventListener('click', () => {
+        soundFx.playClick();
+        this.closeMobileDrawer();
+        this.themeManager.openThemeModal();
+      });
+    }
+
+    if (this.dom.drawerSoundBtn) {
+      this.dom.drawerSoundBtn.addEventListener('click', () => {
+        soundFx.init();
+        soundFx.toggleMute();
+        this.updateSoundIcons();
+        if (!soundFx.isMuted()) soundFx.playKey();
+      });
+    }
+  }
+
+  openMobileDrawer() {
+    if (!this.dom.mobileDrawerContainer) return;
+    this.dom.mobileDrawerContainer.classList.add('drawer-open');
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  closeMobileDrawer() {
+    if (!this.dom.mobileDrawerContainer) return;
+    this.dom.mobileDrawerContainer.classList.remove('drawer-open');
+  }
+
+  // =========================================================================
+  // GESTÃO DE MODAIS E EVENTOS
   // =========================================================================
 
   bindEvents() {
-    // Alternar som
     if (this.dom.soundToggleBtn) {
       this.dom.soundToggleBtn.addEventListener('click', () => {
         soundFx.init();
         soundFx.toggleMute();
-        this.updateSoundIcon();
+        this.updateSoundIcons();
         if (!soundFx.isMuted()) soundFx.playKey();
       });
     }
 
-    // Alternar tema
     if (this.dom.themeToggleBtn) {
       this.dom.themeToggleBtn.addEventListener('click', () => {
-        this.themeManager.cycleTheme();
+        this.themeManager.openThemeModal();
       });
     }
 
-    // Dicas
-    if (this.dom.hintLetterBtn) {
-      this.dom.hintLetterBtn.addEventListener('click', () => this.useHintLetter());
-    }
-    if (this.dom.hintWordBtn) {
-      this.dom.hintWordBtn.addEventListener('click', () => this.useHintWord());
-    }
-    if (this.dom.checkErrorsBtn) {
-      this.dom.checkErrorsBtn.addEventListener('click', () => this.checkAndHighlightErrors());
-    }
-    if (this.dom.resetBoardBtn) {
-      this.dom.resetBoardBtn.addEventListener('click', () => this.resetCurrentBoard());
-    }
+    if (this.dom.hintLetterBtn) this.dom.hintLetterBtn.addEventListener('click', () => this.useHintLetter());
+    if (this.dom.hintWordBtn) this.dom.hintWordBtn.addEventListener('click', () => this.useHintWord());
+    if (this.dom.checkErrorsBtn) this.dom.checkErrorsBtn.addEventListener('click', () => this.checkAndHighlightErrors());
+    if (this.dom.resetBoardBtn) this.dom.resetBoardBtn.addEventListener('click', () => this.resetCurrentBoard());
 
-    // Compartilhamento
-    if (this.dom.shareBtn) {
-      this.dom.shareBtn.addEventListener('click', () => this.openShareModal());
-    }
+    if (this.dom.shareBtn) this.dom.shareBtn.addEventListener('click', () => this.openShareModal());
+
     if (this.dom.copyShareUrlBtn) {
       this.dom.copyShareUrlBtn.addEventListener('click', async () => {
         const url = this.dom.shareUrlInput.value;
@@ -426,6 +494,7 @@ class CruzadaApp {
         }
       });
     }
+
     if (this.dom.exportJsonBtn) {
       this.dom.exportJsonBtn.addEventListener('click', () => {
         soundFx.playClick();
@@ -433,20 +502,10 @@ class CruzadaApp {
       });
     }
 
-    // Modal de Puzzles
-    if (this.dom.selectPuzzleBtn) {
-      this.dom.selectPuzzleBtn.addEventListener('click', () => this.openPuzzlesModal());
-    }
+    if (this.dom.selectPuzzleBtn) this.dom.selectPuzzleBtn.addEventListener('click', () => this.openPuzzlesModal());
+    if (this.dom.aiGeneratorBtn) this.dom.aiGeneratorBtn.addEventListener('click', () => this.openAiModal());
+    if (this.dom.aiGenerateSubmitBtn) this.dom.aiGenerateSubmitBtn.addEventListener('click', () => this.handleAiGenerate());
 
-    // Modal de IA
-    if (this.dom.aiGeneratorBtn) {
-      this.dom.aiGeneratorBtn.addEventListener('click', () => this.openAiModal());
-    }
-    if (this.dom.aiGenerateSubmitBtn) {
-      this.dom.aiGenerateSubmitBtn.addEventListener('click', () => this.handleAiGenerate());
-    }
-
-    // Modal de Vitória
     if (this.dom.victoryPlayNextBtn) {
       this.dom.victoryPlayNextBtn.addEventListener('click', () => {
         soundFx.playClick();
@@ -454,6 +513,7 @@ class CruzadaApp {
         this.openPuzzlesModal();
       });
     }
+
     if (this.dom.victoryCloseBtn) {
       this.dom.victoryCloseBtn.addEventListener('click', () => {
         soundFx.playClick();
@@ -508,7 +568,8 @@ class CruzadaApp {
       this.dom.puzzlesModal, 
       this.dom.aiModal, 
       this.dom.shareModal, 
-      this.dom.victoryModal
+      this.dom.victoryModal,
+      this.dom.themeModal
     ].forEach(m => {
       if (m) m.classList.add('hidden');
     });
@@ -631,7 +692,6 @@ class CruzadaApp {
   }
 }
 
-// Inicializa a aplicação assim que o DOM estiver pronto
 document.addEventListener('DOMContentLoaded', () => {
   window.cruzadaApp = new CruzadaApp();
 });

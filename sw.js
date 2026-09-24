@@ -3,7 +3,7 @@
  * Permite que o jogo funcione 100% offline sem conexão com a internet.
  */
 
-const CACHE_NAME = 'cruzadamaster-v1.0.0';
+const CACHE_NAME = 'cruzadamaster-v1.1.0';
 
 const STATIC_ASSETS = [
   './',
@@ -20,14 +20,17 @@ const STATIC_ASSETS = [
   './js/themeManager.js',
   './js/offlineManager.js',
   './js/shareManager.js',
-  './js/aiService.js'
+  './js/aiService.js',
+  './js/authManager.js',
+  './js/crosswordBuilder.js',
+  './js/firebaseConfig.js'
 ];
 
 // 1. Instalação: Pre-cache de todos os arquivos estáticos essenciais
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[ServiceWorker] Pre-caching arquivos do CruzadaMaster...');
+      console.log('[ServiceWorker] Pre-caching arquivos do CruzadaMaster v1.1.0...');
       return cache.addAll(STATIC_ASSETS);
     }).then(() => self.skipWaiting())
   );
@@ -51,8 +54,10 @@ self.addEventListener('activate', (event) => {
 
 // 3. Estratégia de Fetch: Cache-First com Fallback para Network
 self.addEventListener('fetch', (event) => {
-  // Ignora requisições de outras origens não-GET ou da API do Gemini
-  if (event.request.method !== 'GET' || event.request.url.includes('generativelanguage.googleapis.com')) {
+  if (event.request.method !== 'GET' || 
+      event.request.url.includes('generativelanguage.googleapis.com') ||
+      event.request.url.includes('identitytoolkit.googleapis.com') ||
+      event.request.url.includes('firestore.googleapis.com')) {
     return;
   }
 
@@ -74,7 +79,6 @@ self.addEventListener('fetch', (event) => {
 
         return networkResponse;
       }).catch(() => {
-        // Se falhar e for navegação, retorna a página inicial
         if (event.request.mode === 'navigate') {
           return caches.match('./index.html');
         }
