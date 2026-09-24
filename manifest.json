@@ -1,0 +1,19 @@
+{
+  "name": "CruzadaMaster - Palavras Cruzadas Gamificadas",
+  "short_name": "CruzadaMaster",
+  "description": "Jogo de Palavras Cruzadas moderno, interativo, gamificado e 100% Offline-First para web, desktop e mobile.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "education", "puzzle"]
+}

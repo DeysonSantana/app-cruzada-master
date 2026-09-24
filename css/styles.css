@@ -1,0 +1,330 @@
+/* =========================================================================
+   CRUZADAMASTER - DESIGN SYSTEM & ESTILOS GLOBAIS
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Outfit', system-ui, sans-serif;
+
+  /* Tema Padrão: Dark Neon */
+  --bg-primary: #090d16;
+  --bg-secondary: #0f172a;
+  --bg-card: rgba(15, 23, 42, 0.85);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --accent-color: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.35);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --cell-bg: #1e293b;
+  --cell-border: rgba(255, 255, 255, 0.15);
+  --cell-active: #4f46e5;
+  --cell-word-hl: rgba(99, 102, 241, 0.22);
+}
+
+/* =========================================================================
+   SISTEMA DE 5 TEMAS
+   ========================================================================= */
+
+/* 1. Clean Light */
+body.theme-light-modern {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --border-color: rgba(0, 0, 0, 0.08);
+  --accent-color: #4f46e5;
+  --accent-glow: rgba(79, 70, 229, 0.2);
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --cell-bg: #ffffff;
+  --cell-border: #cbd5e1;
+  --cell-active: #6366f1;
+  --cell-word-hl: rgba(99, 102, 241, 0.14);
+}
+
+/* 2. Emerald Forest */
+body.theme-emerald {
+  --bg-primary: #04120e;
+  --bg-secondary: #08211a;
+  --bg-card: rgba(8, 33, 26, 0.85);
+  --border-color: rgba(16, 185, 129, 0.15);
+  --accent-color: #10b981;
+  --accent-glow: rgba(16, 185, 129, 0.3);
+  --text-primary: #ecfdf5;
+  --text-secondary: #6ee7b7;
+  --cell-bg: #0f3329;
+  --cell-border: rgba(16, 185, 129, 0.25);
+  --cell-active: #059669;
+  --cell-word-hl: rgba(16, 185, 129, 0.22);
+}
+
+/* 3. Sunset Amber */
+body.theme-sunset {
+  --bg-primary: #150b0f;
+  --bg-secondary: #221218;
+  --bg-card: rgba(34, 18, 24, 0.85);
+  --border-color: rgba(245, 158, 11, 0.15);
+  --accent-color: #f59e0b;
+  --accent-glow: rgba(245, 158, 11, 0.3);
+  --text-primary: #fffbeb;
+  --text-secondary: #fcd34d;
+  --cell-bg: #321b23;
+  --cell-border: rgba(245, 158, 11, 0.25);
+  --cell-active: #d97706;
+  --cell-word-hl: rgba(245, 158, 11, 0.22);
+}
+
+/* 4. Midnight AMOLED */
+body.theme-midnight-amoled {
+  --bg-primary: #000000;
+  --bg-secondary: #050505;
+  --bg-card: #080808;
+  --border-color: rgba(255, 255, 255, 0.18);
+  --accent-color: #38bdf8;
+  --accent-glow: rgba(56, 189, 248, 0.3);
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --cell-bg: #0d0d0d;
+  --cell-border: rgba(255, 255, 255, 0.3);
+  --cell-active: #0284c7;
+  --cell-word-hl: rgba(56, 189, 248, 0.2);
+}
+
+/* =========================================================================
+   BASE & RESET
+   ========================================================================= */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Fundo com efeito mesh gradient sutil */
+.bg-mesh {
+  background-image: 
+    radial-gradient(at 10% 20%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+    radial-gradient(at 90% 80%, rgba(236, 72, 153, 0.06) 0px, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* =========================================================================
+   GRADE DE PALAVRAS CRUZADAS (CROSSWORD GRID)
+   ========================================================================= */
+
+#crossword-grid {
+  display: grid;
+  gap: 2px;
+  background-color: #020617;
+  padding: 4px;
+  border-radius: 14px;
+  border: 2px solid var(--border-color);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  user-select: none;
+  touch-action: manipulation;
+  width: 100%;
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+.cw-cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+  border-radius: 4px;
+}
+
+/* Célula de bloqueio (Preta) */
+.cw-cell-block {
+  background-color: #020617;
+  pointer-events: none;
+}
+
+/* Célula jogável */
+.cw-cell-playable {
+  background-color: var(--cell-bg);
+  border: 1px solid var(--cell-border);
+  cursor: pointer;
+}
+
+.cw-cell-playable:hover {
+  filter: brightness(1.15);
+}
+
+/* Destaque de palavra selecionada */
+.cw-cell-word-highlight {
+  background-color: var(--cell-word-hl) !important;
+  border-color: var(--accent-color) !important;
+}
+
+/* Célula em foco exato ativo */
+.cw-cell-active {
+  background-color: var(--cell-active) !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: 0 0 14px var(--accent-glow);
+  transform: scale(1.04);
+  z-index: 10;
+}
+
+.cw-cell-active .cw-cell-letter {
+  color: #ffffff !important;
+}
+
+/* Célula travada por dica ou vitória */
+.cw-cell-locked {
+  background-color: rgba(16, 185, 129, 0.18) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+/* Erro temporário (shake vermelho) */
+.cw-cell-error {
+  background-color: rgba(239, 68, 68, 0.3) !important;
+  border-color: #ef4444 !important;
+  animation: cellShake 0.4s ease-in-out;
+}
+
+@keyframes cellShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+/* Número da dica no canto superior */
+.cw-cell-number {
+  position: absolute;
+  top: 1.5px;
+  left: 2.5px;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 700;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+/* Letra do jogador */
+.cw-cell-letter {
+  font-family: var(--font-display);
+  font-size: clamp(14px, 3.5vw, 22px);
+  font-weight: 800;
+  text-transform: uppercase;
+  pointer-events: none;
+  line-height: 1;
+}
+
+/* =========================================================================
+   LISTAS DE PISTAS (CLUES LIST)
+   ========================================================================= */
+
+.clues-scroll-area {
+  max-height: 280px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-color) transparent;
+}
+
+.clues-scroll-area::-webkit-scrollbar {
+  width: 5px;
+}
+
+.clues-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--accent-color);
+  border-radius: 4px;
+}
+
+.cw-clue-item {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cw-clue-item:hover {
+  border-color: var(--accent-color);
+  transform: translateX(2px);
+}
+
+.cw-clue-active {
+  background-color: var(--cell-word-hl) !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.cw-clue-completed {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.cw-clue-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background-color: var(--accent-color);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+/* =========================================================================
+   TECLADO VIRTUAL ON-SCREEN (MOBILE KEYPAD)
+   ========================================================================= */
+
+.keypad-key {
+  touch-action: manipulation;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+}
+
+.keypad-letter-btn {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.keypad-letter-btn:active {
+  background-color: var(--accent-color);
+  color: #ffffff;
+}
+
+/* =========================================================================
+   MODAIS & BACKDROP
+   ========================================================================= */
+
+.modal-enter {
+  animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
