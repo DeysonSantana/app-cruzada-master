@@ -9,7 +9,7 @@ import { ThemeManager } from './themeManager.js';
 import { OfflineManager } from './offlineManager.js';
 import { AuthManager } from './authManager.js';
 import { CrosswordBuilder } from './crosswordBuilder.js';
-import { DEFAULT_PUZZLES } from './puzzles.js';
+import { DEFAULT_PUZZLES, PUZZLE_CATEGORIES } from './puzzles.js';
 import { soundFx } from './audio.js';
 import { 
   encodeCrosswordToUrl, 
@@ -40,6 +40,7 @@ class CruzadaApp {
     this.timerInterval = null;
     this.isCompleted = false;
     this.currentPuzzleData = null;
+    this.selectedCategory = 'all';
 
     // Cache de elementos do DOM
     this.dom = {
@@ -85,6 +86,8 @@ class CruzadaApp {
 
       // Elementos do Modal de Puzzles
       puzzlesListContainer: document.getElementById('puzzles-list-container'),
+      puzzlesCategoriesBar: document.getElementById('puzzles-categories-bar'),
+      puzzlesCountBadge: document.getElementById('puzzles-count-badge'),
       closePuzzlesModalBtn: document.getElementById('close-puzzles-modal-btn'),
 
       // Elementos do Modal de IA
@@ -590,25 +593,85 @@ class CruzadaApp {
     }
   }
 
-  openPuzzlesModal() {
+  openPuzzlesModal(selectedCategory = this.selectedCategory) {
+    this.selectedCategory = selectedCategory || 'all';
     if (!this.dom.puzzlesListContainer) return;
+
+    // 1. Renderiza a barra de filtros de categorias
+    if (this.dom.puzzlesCategoriesBar) {
+      this.dom.puzzlesCategoriesBar.innerHTML = '';
+      PUZZLE_CATEGORIES.forEach(cat => {
+        const isActive = this.selectedCategory === cat.id;
+        const count = cat.id === 'all' 
+          ? DEFAULT_PUZZLES.length 
+          : DEFAULT_PUZZLES.filter(p => p.category === cat.id).length;
+
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = isActive
+          ? 'px-3 py-1.5 rounded-xl bg-indigo-600 text-white font-bold text-xs whitespace-nowrap shadow-md shadow-indigo-600/30 flex items-center gap-1.5 transition-all'
+          : 'px-3 py-1.5 rounded-xl bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700/60 font-semibold text-xs whitespace-nowrap flex items-center gap-1.5 transition-all';
+
+        pill.innerHTML = `
+          <span>${cat.icon}</span>
+          <span>${cat.name}</span>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? 'bg-indigo-700 text-indigo-100 font-extrabold' : 'bg-gray-700 text-gray-400'}">${count}</span>
+        `;
+
+        pill.addEventListener('click', () => {
+          soundFx.playClick();
+          this.openPuzzlesModal(cat.id);
+        });
+
+        this.dom.puzzlesCategoriesBar.appendChild(pill);
+      });
+    }
+
+    // 2. Filtra os tabuleiros pela categoria selecionada
+    const filtered = this.selectedCategory === 'all'
+      ? DEFAULT_PUZZLES
+      : DEFAULT_PUZZLES.filter(p => p.category === this.selectedCategory);
+
+    // 3. Atualiza o contador de cruzadas
+    if (this.dom.puzzlesCountBadge) {
+      const activeCat = PUZZLE_CATEGORIES.find(c => c.id === this.selectedCategory);
+      this.dom.puzzlesCountBadge.textContent = this.selectedCategory === 'all'
+        ? `${DEFAULT_PUZZLES.length} cruzadas curadas em 8 categorias`
+        : `${filtered.length} cruzadas em "${activeCat?.name || ''}"`;
+    }
+
+    // 4. Renderiza os cards de cruzadas
     this.dom.puzzlesListContainer.innerHTML = '';
 
-    DEFAULT_PUZZLES.forEach((puzzle, idx) => {
+    filtered.forEach((puzzle) => {
       const card = document.createElement('div');
-      card.className = 'p-4 rounded-xl bg-gray-800/80 hover:bg-gray-800 border border-gray-700/80 hover:border-indigo-500/50 cursor-pointer transition-all flex items-center justify-between gap-3 group';
+      card.className = 'p-3.5 sm:p-4 rounded-2xl bg-gray-800/70 hover:bg-gray-800 border border-gray-700/80 hover:border-indigo-500/50 cursor-pointer transition-all flex items-center justify-between gap-3 group';
+
+      let diffBadgeClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+      if (puzzle.difficulty === 'Fácil') {
+        diffBadgeClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+      } else if (puzzle.difficulty === 'Difícil') {
+        diffBadgeClass = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+      }
+
+      const icon = puzzle.categoryIcon || '🧩';
 
       card.innerHTML = `
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-bold flex items-center justify-center group-hover:scale-105 transition-transform">
-            ${idx + 1}
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl bg-gray-900/80 border border-gray-700 text-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-inner">
+            ${icon}
           </div>
-          <div>
-            <h4 class="font-bold text-white group-hover:text-indigo-300 transition-colors">${puzzle.title}</h4>
-            <span class="text-xs text-gray-400 font-medium">${puzzle.words.length} palavras • ${puzzle.difficulty}</span>
+          <div class="min-w-0">
+            <h4 class="font-bold text-white text-sm group-hover:text-indigo-300 transition-colors truncate">${puzzle.title}</h4>
+            <div class="flex items-center gap-2 mt-0.5 flex-wrap text-xs">
+              <span class="text-gray-400 font-medium">${puzzle.words.length} palavras</span>
+              <span class="text-gray-600">•</span>
+              <span class="px-2 py-0.5 rounded-md border text-[10px] font-bold ${diffBadgeClass}">${puzzle.difficulty}</span>
+              ${puzzle.categoryName ? `<span class="text-gray-500 text-[10px] hidden sm:inline">• ${puzzle.categoryName}</span>` : ''}
+            </div>
           </div>
         </div>
-        <button class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition-colors">
+        <button class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-all shrink-0">
           Jogar
         </button>
       `;
